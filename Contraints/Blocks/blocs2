@@ -1,0 +1,166 @@
+import sys; args = sys.argv[1:]
+
+import time
+
+
+def readInput(args):
+    pieces = []
+    for arg in args:
+        arg = arg.replace('X', 'x')
+        if 'x' in arg:
+            parts = arg.split('x')
+            pieces.extend(parts)
+        else:
+            pieces.append(arg)
+
+    pieces = [int(token) for token in pieces]
+    boxHeight, boxWidth = pieces[0], pieces[1]
+    blocks = []
+    idx = 2
+    while idx < len(pieces):
+        h, w = pieces[idx], pieces[idx + 1]
+        blocks.append({'h': h, 'w': w})
+        idx += 2
+    return boxHeight, boxWidth, blocks
+
+def findTotalArea(blocks):
+    return sum(block['h'] * block['w'] for block in blocks)
+
+def canPlaceBlock(pzl, index, block_h, block_w):
+    row = index // boxWidth
+    col = index % boxWidth
+    if col + block_w > boxWidth:
+        return False
+    if row + block_h > boxHeight:
+        return False
+    for i in range(block_h):
+        for j in range(block_w):
+            idx = (row + i) * boxWidth + (col + j)
+            if pzl[idx] != '.':
+                return False
+    return True
+
+def placeBlock(pzl, index, block_h, block_w, blockNumber):
+    pzl = list(pzl)
+    row = index // boxWidth
+    col = index % boxWidth
+    for i in range(block_h):
+        for j in range(block_w):
+            idx = (row + i) * boxWidth + (col + j)
+            pzl[idx] = str(blockNumber)
+    return ''.join(pzl)
+
+def createChoices(pzl, block, blockNumber):
+    choices = []
+    for index in range(len(pzl)):
+        if pzl[index] == '.':
+            for rotated in [False, True]:
+                if rotated:
+                    block_h, block_w = block['w'], block['h']
+                else:
+                    block_h, block_w = block['h'], block['w']
+                if canPlaceBlock(pzl, index, block_h, block_w):
+                    new_pzl = placeBlock(pzl, index, block_h, block_w, blockNumber)
+                    choices.append((new_pzl, rotated))
+    return choices
+
+def bruteForce(pzl, blocks, blockNumber):
+    if not blocks:
+        return pzl
+    block = blocks[0]
+    remaining_blocks = blocks[1:]
+    choices = createChoices(pzl, block, blockNumber)
+    for new_pzl, rotated in choices:
+        result = bruteForce(new_pzl, remaining_blocks, blockNumber + 1)
+        if result:
+            return result
+    return None
+
+def checkRotate(pzl, idx, symbol):
+    w = 0
+    while  idx % boxWidth + w < boxWidth and pzl[idx + w] == symbol:
+        w += 1
+
+    h = 0
+    while idx // boxWidth + h < boxHeight and pzl[idx + h * boxWidth] == symbol:
+        h += 1
+
+    if (h, w) == (symbolsOrdered[symbol]['h'], symbolsOrdered[symbol]['w']):
+        return False  
+    else :
+        return True  
+    
+        
+
+    
+def printer(pzl):
+    decomp = ''
+    symbolsSeen = set()
+    for idx,x in enumerate(pzl):
+        if not x in symbolsSeen:
+            if x == '.':
+                decomp += ' 1x1'
+            else:
+                if checkRotate(pzl, idx, x):
+                    decomp += ", " + str(symbolsOrdered[x]['w']) + 'x' +  str(symbolsOrdered[x]['h'])
+                else:
+                    decomp += ", " + str(symbolsOrdered[x]['h']) + 'x' +  str(symbolsOrdered[x]['w'])
+
+                symbolsSeen.add(x)
+    return decomp[2:]
+
+
+def printBox(curr):
+    for i in range(boxHeight):
+        print(' '.join(curr[i*boxWidth:(i+1)*boxWidth]))
+    print()
+
+
+def sortBlocks(blocks):
+    return sorted(blocks, key=multiply, reverse=True)
+
+def multiply(b):
+    return b['h'] * b['w']
+
+def main():
+    global boxHeight, boxWidth, symbolsOrdered
+    boxHeight, boxWidth, blocks = readInput(args)
+    symbolsOrdered = {}
+    #blocks = sortBlocks(blocks)
+    for x in range(len(blocks)):
+        symbolsOrdered.update({str(x) : blocks[x]})
+    
+    totalBlocksArea = findTotalArea(blocks)
+    if totalBlocksArea > boxHeight * boxWidth:
+        print("No solution")
+        print('Too much area')
+        return
+    ST = time.perf_counter()
+    start = '.' * (boxHeight * boxWidth)
+    if findTotalArea(blocks) > boxWidth*boxHeight:
+        print("No solution")
+        return
+    result = bruteForce(start, blocks, 0)
+    ET = time.perf_counter()
+    if result is not None:
+        #print("Decomposition:")
+        #printBox(result)
+        print('Decomposition: ' + printer(result))
+       # print("Time taken: {:.2f}s".format(ET - ST))
+    else:
+        print("No solution")
+        print('If everything else fails')
+
+main()
+
+
+#Steps
+
+# grab biggest block, and place it where it can be placed excluding rotational repeats
+# for each instance of new puzzle recur again and place the next biggest block, 
+# repeat above until all blocks are placed
+
+# improvements
+# if the open area is bigger than the area of leftover blocks, return
+
+#Arrush Shah, p4, 2026

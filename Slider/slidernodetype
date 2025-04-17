@@ -1,0 +1,150 @@
+#import math
+import random
+import time
+#import re
+
+root = '16_257348'
+length = 9
+width = 3
+parseMe = [root, "lvl"]
+seen = {root : [0,0]}
+def swap(str ,pos1, pos2):
+    list = [*str]
+    list[pos1], list[pos2] = list[pos2], list[pos1]
+    str = ''.join(list)
+    return str
+
+def addNodes(root, parseMe):
+    if((idx := root.index('_')) - width >= 0): # bottom
+        temp =swap(root, idx, idx-width)
+        if(temp not in seen):
+            parseMe.append(temp)
+            seen.update({temp : [0,0]})
+        else:
+            pc = seen[root]
+            if sum(pc) != 4:
+                pc[0] += 1
+                seen.update({root : pc})
+                pc = seen[temp]
+                pc[1] +=1
+            if sum(pc) != 4:
+                seen.update({temp : pc})
+        
+    if(idx + width < length ): # top
+        temp = swap(root, idx, idx+width)
+        if(temp not in seen):
+            parseMe.append(temp)
+            seen.update({temp : [0,0]})
+        else:
+            pc = seen[root]
+            if sum(pc) != 4:
+                pc[0] += 1
+                seen.update({root : pc})
+                pc = seen[temp]
+                pc[1] +=1
+            if sum(pc) != 4:
+                seen.update({temp : pc})
+
+    if(idx % width != 0 and idx -1 >= 0): # left
+        temp = swap(root, idx, idx-1)
+        if(temp not in seen):
+            parseMe.append(temp)
+            seen.update({temp : [0,0]})
+        else:
+            pc = seen[root]
+            if sum(pc) != 4:
+                pc[0] += 1
+                seen.update({root : pc})
+                pc = seen[temp]
+                pc[1] +=1
+            if sum(pc) != 4:
+                seen.update({temp : pc})
+
+    if(idx % width != width-1 and idx +1 < length): # right
+        temp =swap(root, idx, idx+1)
+        if(temp not in seen):
+            parseMe.append(temp)
+            seen.update({temp : [0,0]})
+        else:
+            pc = seen[root]
+            if sum(pc) != 4:
+                pc = seen[root]
+                pc[0] += 1
+                seen.update({root : pc})
+                pc = seen[temp]
+                pc[1] += 1
+            if sum(pc) != 4:
+                seen.update({temp : pc})
+
+def search(root):
+    steps = 0
+    count = 0
+    while parseMe:
+        current = parseMe[count]
+        count +=1
+        if(current == "lvl"):
+            steps +=1
+            parseMe.append("lvl")
+            if(parseMe[count] == 'lvl'):
+                break
+        else:
+            addNodes(current, parseMe)
+
+
+search(root)
+print(seen)
+ZeroFour = 0
+OneThree = 0
+TwoTwo = 0
+ThreeOne = 0
+OneTwo = 0
+TwoOne = 0
+ThreeZero = 0
+OneOne = 0
+TwoZero = 0
+FourZero = 0
+ZeroThree = 0
+ZeroTwo = 0
+
+for x in parseMe:
+    if x != 'lvl':
+        if seen[x] == [0,4]:
+            ZeroFour += 1
+        elif seen[x] == [1,3]:
+            OneThree += 1
+        elif seen[x] == [2,2]:
+            TwoTwo += 1
+        elif seen[x] == [3,1]:
+            ThreeOne += 1
+        elif seen[x] == [1,2]:
+            OneTwo += 1
+        elif seen[x] == [2,1]:
+            TwoOne += 1
+        elif seen[x] == [3,0]:
+            ThreeZero += 1
+        elif seen[x] == [1,1]:
+            OneOne += 1
+        elif seen[x] == [4,0]:
+            FourZero += 1
+        elif seen[x] == [2,0]:
+            TwoZero += 1
+        elif seen[x] == [0,3]:
+            ZeroThree += 1
+        elif seen[x] == [0,2]:
+            ZeroTwo += 1
+
+print(
+    [ZeroFour,
+OneThree ,
+TwoTwo ,
+ThreeOne ,
+OneTwo ,
+TwoOne ,
+ThreeZero ,
+OneOne ,
+TwoZero ,
+FourZero ,
+ZeroThree ,
+ZeroTwo ,])
+
+#Arrush Shah, p4, 2026

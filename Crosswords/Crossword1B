@@ -1,0 +1,355 @@
+import sys; args = sys.argv[1:]
+import re, random
+dic = open[args[0]]
+args = args[1:]
+
+args = [x.lower() for x in args]
+temp = args[0].split("x")
+H = int(temp[0])
+W = int(temp[1])
+
+LENGTH = H * W
+BLOCKS = int(args[1])
+
+wordUnparsed = args[2:]
+
+
+def rotate180(brd, W):
+    return brd[::-1]
+
+def rotate90(brd, W):
+    
+    rows = [brd[i:i+W] for i in range(0, len(brd), W)]
+    return "".join([row[j] for j in range(len(rows[0])) for row in rows])
+
+def in_bounds(idx, delta, crossword):
+    new_idx = idx + delta
+    if new_idx < 0 or new_idx >= len(crossword):
+        return False
+    # For horizontal moves, ensure we remain on the same row
+    if abs(delta) == 1:
+        if (idx // W) != (new_idx // W):
+            return False
+    return True
+
+def checkUnderScoreThrees(crossword, return_info=False):
+    # Define axes using the positive deltas: horizontal (1) and vertical (W)
+    axes = {'H': 1, 'V': W}
+    axis = None
+    for idx, cell in enumerate(crossword):
+        if cell == '#':
+            continue  # Skip blocked cells
+        for axis, d in axes.items():
+            valid = False
+            neg_d = -d
+            
+            # Pattern 1: two steps in the positive direction
+            if in_bounds(idx, d, crossword) and in_bounds(idx, 2 * d, crossword):
+                if crossword[idx + d] != '#' and crossword[idx + 2 * d] != '#':
+                    valid = True
+            
+            # Pattern 2: one step in each direction (one positive, one negative)
+            if in_bounds(idx, d, crossword) and in_bounds(idx, neg_d, crossword):
+                if crossword[idx + d] != '#' and crossword[idx + neg_d] != '#':
+                    valid = True
+            
+            # Pattern 3: two steps in the negative direction
+            if in_bounds(idx, neg_d, crossword) and in_bounds(idx, 2 * neg_d, crossword):
+                if crossword[idx + neg_d] != '#' and crossword[idx + 2 * neg_d] != '#':
+                    valid = True
+            
+            # If none of the patterns work for this axis, return violation info
+            if not valid:
+                return (False, axis, idx) if return_info else False
+    return  (True, axis, idx) if return_info else True
+
+def checkIsolated(crossword, fill_isolated=False):
+   
+    n = len(crossword)
+    
+    non_block = [i for i, ch in enumerate(crossword) if ch != '#']
+    if not non_block:
+        return True
+    parent = list(range(n))
+    rank = [0] * n
+    
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    
+    def union(x, y):
+        rx = find(x)
+        ry = find(y)
+        if rx == ry:
+            return
+        if rank[rx] < rank[ry]:
+            parent[rx] = ry
+        elif rank[rx] > rank[ry]:
+            parent[ry] = rx
+        else:
+            parent[ry] = rx
+            rank[rx] += 1
+    
+    
+    for i in non_block:
+        r = i // W
+        c = i % W
+        
+        if c > 0 and crossword[i - 1] != '#':
+            union(i, i - 1)
+        
+        if c < W - 1 and crossword[i + 1] != '#':
+            union(i, i + 1)
+        
+        if r > 0 and crossword[i - W] != '#':
+            union(i, i - W)
+        
+        if r < H - 1 and crossword[i + W] != '#':
+            union(i, i + W)
+    
+    
+    components = {}
+    for i in non_block:
+        root = find(i)
+        components.setdefault(root, []).append(i)
+    
+    
+    if len(components) == 1:
+        return crossword if fill_isolated else True
+    
+    
+    if not fill_isolated:
+        return False
+    
+    
+    largest_root = max(components.keys(), key=lambda r: len(components[r]))
+    main_component = set(components[largest_root])
+    board_list = list(crossword)
+    for i in non_block:
+        if i not in main_component:
+            board_list[i] = '#'
+    return "".join(board_list)
+
+def flipAndConvert(crossword):
+    rotated = crossword[::-1]
+    board_list = list(crossword)
+    for i, ch in enumerate(rotated):
+        # Only set to '#' if the current cell is empty
+        if ch == '#' and board_list[i] == '-':
+
+            board_list[i] = '#'
+    return "".join(board_list)
+
+
+def flipHorizontally(crossword):
+    board_list = list(crossword)
+    for i, ch in enumerate(crossword[::-1]):
+        board_list[i] = ch
+    return "".join(board_list)  
+
+def fixBoard(crossword):
+    new_board = crossword
+    
+    new_board = checkIsolated(new_board, fill_isolated=True)
+    valid, direction, pos = checkUnderScoreThrees(new_board, return_info=True)
+    while not valid:
+        #print2D(new_board)
+        #print()
+        if direction == 'H':
+            row_start = pos - (pos % W)
+            row_end = row_start + W - 1
+            
+            left = pos
+            while left > row_start and new_board[left - 1] != '#':
+                left -= 1
+            
+            right = pos
+            while right < row_end and new_board[right + 1] != '#':
+                right += 1
+            for i in range(left, right + 1):
+                if new_board[i] == '-':
+                    new_board = new_board[:i] + '#' + new_board[i+1:]
+                else: return ''
+            #new_board = new_board[:left] + '#' * (right - left + 1) + new_board[right+1:]
+            new_board = flipAndConvert(new_board)
+        else:
+            
+            col = pos % W
+            
+            top = pos
+            while top >= W and new_board[top - W] != '#':
+                top -= W
+            
+            bottom = pos
+            while bottom < (H - 1) * W and new_board[bottom + W] != '#':
+                bottom += W
+            
+            board_list = list(new_board)
+            for i in range(top, bottom + 1, W):
+                if new_board[i] == '-':
+                    board_list[i] = '#'
+                else: return ''
+            new_board = ''.join(board_list)
+            new_board = flipAndConvert(new_board)
+        
+        
+        valid, direction, pos = checkUnderScoreThrees(new_board, return_info=True)
+    
+    return new_board
+
+
+
+def isValid(crossword):
+    return checkUnderScoreThrees(crossword) and checkIsolated(crossword)
+
+def getPossible(crossword, W):
+    poss = []
+    for index, char in enumerate(crossword):
+        if char == '-' and crossword[LENGTH - index - 1] == '-' or crossword[LENGTH - index - 1] == '#':
+            poss.append((sortingNum2(crossword, index, W, True), index))
+    return sorted(poss)
+
+def sortingNum(crossword, index, W):
+    row_start = (index // W) * W  # Get the start of the row
+    col_start = index % W         # Get the start of the column
+    row_blocks = sum(1 for c in range(row_start, row_start + W) if crossword[c] == '#')
+
+    col_blocks = sum(1 for r in range(col_start, len(crossword), W) if crossword[r] == '#')
+
+    return row_blocks + col_blocks 
+
+def sortingNum2(crossword, index, W, digagonals = True):
+    count = 0
+    total = len(crossword)
+    H = total // W  
+    r = index // W
+    c = index % W
+
+    # Cardinal directions:
+    # Left
+    if c > 0 and crossword[index - 1] == '#':
+        count += 1
+    # Right
+    if c < W - 1 and crossword[index + 1] == '#':
+        count += 1
+    # Up
+    if r > 0 and crossword[index - W] == '#':
+        count += 1
+    # Down
+    if r < H - 1 and crossword[index + W] == '#':
+        count += 1
+        
+    if digagonals:
+        # Diagonals:
+        # Top-left
+        if r > 0 and c > 0 and crossword[index - W - 1] == '#':
+            count += 1
+        # Top-right
+        if r > 0 and c < W - 1 and crossword[index - W + 1] == '#':
+            count += 1
+        # Bottom-left
+        if r < H - 1 and c > 0 and crossword[index + W - 1] == '#':
+            count += 1
+        # Bottom-right
+        if r < H - 1 and c < W - 1 and crossword[index + W + 1] == '#':
+            count += 1
+
+    return count
+
+def checkPossibiles(crossword, W, target):
+    for num, pos in getPossible(crossword, W):
+        new_board = crossword[:pos] + '#' + crossword[pos+1:]
+        if crossword[(H*W -1) - pos] != '-':
+            continue
+        new_board = new_board[:(H*W -1) - pos] + '#' + new_board[(H*W -1) - pos+1:]
+        ret = placeBlocks(new_board, target)
+        if ret:
+            return ret
+        
+def placeBlocks(raw_board, target):
+    crossword = raw_board
+    if not isValid(crossword):
+        if target - crossword.count('#') < 9:
+            return None
+        crossword = fixBoard(crossword)
+    if crossword.count('#') == target:
+        return crossword
+    if crossword.count('#') > target:
+        return None
+    
+    if (w:=checkPossibiles(crossword, W, target)): return w
+    return None
+
+def placeWord(crossword, VOH, x, y, word):
+    index = x * W + y
+    BLOCKS = 0
+    lst = [*crossword]
+    end = index + len(word)
+    step = 1
+    if VOH == 'v': 
+        step = W
+        end = index + (len(word)*W)
+    counter = 0
+    for c in range(index, end, step):
+        lst[c] = word[counter]
+        #print(len(crossword) - c -1)
+        
+        if word[counter] == '#': 
+            lst[len(crossword) - c - 1] = '#'
+            BLOCKS += 2
+            
+        #elif lst[len(crossword) - c - 1] == '-': 
+         #   lst[len(crossword) - c - 1] = '/'
+            
+        counter += 1
+    return ''.join(lst)
+
+def parsewordUnparsed(wordUnparsedList, brd):
+    for item in wordUnparsedList:
+        VOH = item[0]
+        x, part = item[1:].split('x',1)
+        try:
+            y = int(part[:2])
+            word = part[2:]
+        except:
+            y = int(part[0])    
+            word = part[1:]
+        x = int(x)
+        if not word: word = '#'
+    
+        brd = placeWord(brd, VOH, x, y, word)
+    return brd
+
+
+def print2D(crossword):
+    l = list(crossword)
+    for i in range(H):
+        print("".join(l[i * W + j] for j in range(W)))
+
+def main():
+    
+    if BLOCKS == LENGTH:
+        print2D("#" * LENGTH)
+        return
+    if LENGTH - BLOCKS < 9:
+        print2D("#" * LENGTH)
+        return
+    crossword = '-' * LENGTH
+    crossword = parsewordUnparsed(wordUnparsed, crossword)
+    print2D(crossword)
+    
+    final_crossword = crossword
+    final_crossword = flipAndConvert(final_crossword)
+    if not isValid(final_crossword):
+        final_crossword = fixBoard(final_crossword)
+    final_crossword = placeBlocks(final_crossword, BLOCKS)
+    
+    print()
+    if final_crossword == None or final_crossword.count('#') != BLOCKS:
+        print2D( '#' * LENGTH)
+    else: print2D(final_crossword)
+    
+if __name__ == '__main__': main()
+# Arrush Shah, p4, 2026

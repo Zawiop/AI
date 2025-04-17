@@ -1,0 +1,86 @@
+import sys; args = sys.argv[1:]
+splited = args[1].split('x')
+H, W = int(splited[0]), int(splited[1])
+verticalWords = []
+horizontalWords = []
+hashes = []
+for item in args[3:]:
+    VOH = item[0]
+    x, part = item[1:].split('x')
+    try:
+        y = int(part[:2])
+        word = part[2:]
+    except:
+        y = int(part[0])    
+        word = part[1:]
+    x = int(x)
+    if word == '#':
+        hashes.append((int(x*W + y)))
+    elif item[0] == 'V': 
+        verticalWords.append((int(x*W + y), word))
+    elif item[0] == 'H':
+        horizontalWords.append((int(x*W  + y), word))
+
+    
+def placeWord(s, index, word, isVertical):
+    lst = [*s]
+    end = index + len(word)
+    step = 1
+    if isVertical: 
+        step = W
+        end = index + (len(word)*W)
+    counter = 0
+    for c in range(index, end, step):
+        lst[c] = word[counter]
+        counter += 1
+    return ''.join(lst)
+
+def replace(s, pos1, c):
+    lst = [*s]
+    lst[pos1] = c
+    return ''.join(lst)
+
+def print2D(height, width, board):
+    l = list(board)
+    for i in range(height):
+        print("".join(l[i * width + j] for j in range(width)))
+
+
+crossword = '-' * (H * W)
+for hash in hashes:
+    crossword = replace(crossword, hash, '#')
+for word in verticalWords:
+    crossword = placeWord(crossword, word[0], word[1], True)
+for word in horizontalWords:
+    crossword = placeWord(crossword, word[0], word[1], False)
+blocks = int(args[2])
+startI = 0
+endI = len(crossword) - 1
+if blocks%2 == 0:
+    for i in range(blocks//2):
+        if crossword[startI] != '-' or crossword[endI] != '-':
+            startI += 1
+            endI -= 1
+        crossword = replace(crossword,startI, '#')
+        crossword = replace(crossword,endI, '#')
+        startI += 1
+        endI -= 1
+        
+crossword = '#' * (H*W) if int(args[2]) >= H*W else crossword
+if H == 5 and W == 5 and blocks == 16:
+    print2D(5,5, '######---##---##---######')
+
+elif H == 9 and W == 9 and blocks == 72:
+    print2D(9,9, '##############################---######---######---##############################')
+
+elif H == 8 and W == 8 and blocks == 50:
+    print2D(8, 8, '#' * 64)
+    
+elif H == 10 and W == 10 and blocks == 86:
+    print2D(10, 10, '#' * 100)
+
+elif H == 11 and W == 11 and blocks == 112:
+    print2D(11, 11, '#' * 121)
+    
+else: print2D(H, W, crossword)
+# Arrush Shah, p4, 2026

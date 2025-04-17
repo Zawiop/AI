@@ -1,0 +1,186 @@
+import sys; args = sys.argv[1:]
+import time
+#sys.setrecursionlimit(10000)
+stacks = {}
+startT = time.perf_counter()
+contraintSet = []
+constraintDict = {}
+puzzles = open(args[0]).read().splitlines()
+#puzzles = ['.3........4.....5....86.........4.1...8.....72.6..............6....35.....7..1..2']
+symbolSet = set()
+n = 9
+# copied from slider 
+def updateStacks(choices):
+    stacks[choices] = stacks.get(choices,0)+ 1
+def printBox(curr):
+    return  (''.join([' '.join(curr[n*x: n*(x+1)]) + '\n' for x in range(len(curr)//n)]))
+
+# idx squares start on: 0, 3, 6, 27, 30, 33, 54, 57, 60
+def getIdxOfBox(startIdx):
+    tempSet = set()
+    c = startIdx
+    for x in range(3):
+        tempSet.add(c)
+        tempSet.add(c+1)
+        tempSet.add(c+2)
+
+        c += 9
+    return tempSet
+
+def createContraintSet(n):
+    for x in range(n): 
+        contraintSet.append({row for row in range(x*n, x*n+n)})   
+        contraintSet.append({col for col in range(x, n*n, n)}) 
+    indexes = [0, 3, 6, 27, 30, 33, 54, 57, 60]
+    for x in indexes:
+        contraintSet.append(getIdxOfBox(x))
+
+    for x in range(81):
+        temp = set()
+        for constraint in contraintSet:
+            if x in constraint:
+                temp.update(constraint)
+        temp.remove(x)
+        constraintDict.update({x : temp})
+        
+''' Work in progress symbol set creation
+def createSymbolSet(pzl):
+    tempSymbolSet = sorted([*{*pzl}])  
+    tempSymbolSet.remove('.')  
+
+    if len(tempSymbolSet) == 9:
+        return tempSymbolSet
+
+    newEle = []
+
+    for idx in range(1, len(tempSymbolSet)):
+        current = tempSymbolSet[idx-1]
+        next_symbol = tempSymbolSet[idx]
+
+        while ord(current) + 1 != ord(next_symbol):
+            current = chr(ord(current) + 1)
+            newEle.append(current)
+
+    while len(tempSymbolSet) + len(newEle) < 9:
+        newEle.append(chr(ord(tempSymbolSet[-1]) + len(newEle) + 1))
+
+    return sorted(tempSymbolSet + newEle)
+'''
+def createSymbolSet(pzl):
+    return [str(i) for i in range(1, 10)] 
+
+
+def isInvalid(pzl, changedIdx, idxToImposs):
+    val = pzl[changedIdx]
+    if val == '.':  
+        return False
+    if val in idxToImposs[changedIdx]:
+        return True  
+    return False
+
+def isSolved(pzl):
+    return '.' not in pzl
+
+def findOptimalSymbol(idxToImposs):
+    counts = [0 for x in range(10)]  
+    oIdx = -1 
+    maxCount = -1
+    maxValue = -1
+    for idx in idxToImposs: 
+        for val in idxToImposs[idx]:
+            counts[int(val)] += 1
+            if counts[int(val)] > maxCount:
+                maxCount = counts[int(val)]
+                oIdx = idx
+                maxValue = val  
+    return maxCount, oIdx, maxValue
+
+
+def createMORECHOICES(pzl, idxToImposs):
+    bigList = []
+    for idx,x in enumerate(pzl):
+        if x == '.':
+            bigList.append(createChoices(pzl,idx, idxToImposs) + (idx,)) # list of (# of choices, pzls, indexChanged)
+            if len(bigList[-1][1]) <= 1:
+                return bigList[-1][1], bigList[-1][2]
+    count, symbolIndex, maxValue = findOptimalSymbol(idxToImposs)
+    bigList.sort()
+    
+    if bigList[0][0] > (81 - count):
+        return [pzl[:symbolIndex] + maxValue  + pzl[symbolIndex+1:]], symbolIndex
+    return bigList[0][1], bigList[0][2]
+
+def createChoices(pzl, idx, idxToImposs):
+   temp = []
+   for c in symbolSet:
+       if c not in idxToImposs[idx]:
+         curr = pzl[:idx] +  c + pzl[idx+1:]
+         temp.append(curr)
+   return (len(temp),temp)
+
+def updateDict(pzl, idx, dict):
+    copy_dict = {k: set(v) for k, v in dict.items()}  
+    val = pzl[idx]
+    for affected_idx in constraintDict[idx]: 
+        copy_dict[affected_idx].add(val)
+    return copy_dict
+
+def createDict(pzl):
+    endDict = {}
+    for key in constraintDict:
+        for index in constraintDict[key]:
+            if pzl[index] != '.':
+                endDict.setdefault(key, set()).add(pzl[index])
+        endDict.setdefault(key, set())
+    return endDict
+
+
+def bruteForce(pzl, idx, idxToImposs):
+    if isInvalid(pzl, idx, idxToImposs): return ''
+    if isSolved(pzl): return pzl
+
+    choices, newIdx = createMORECHOICES(pzl, idxToImposs)
+    for subPzl in choices:
+        updatedDict = updateDict(subPzl, newIdx, idxToImposs)
+        BF = bruteForce(subPzl, newIdx, updatedDict)
+        if BF: 
+            return BF
+    return ''
+
+def checkSum(pzl):
+    minAscii = 127
+    for c in pzl:
+        if ord(c) < minAscii:
+            minAscii = ord(c)
+    sum = 0
+    for c in pzl:
+        sum += (ord(c) - minAscii)
+    return sum
+def main():
+
+    global symbolSet
+    createContraintSet(9)
+    for num,curr in enumerate(puzzles):
+        symbolSet = {*createSymbolSet(curr)}
+        print(str(num+1)+ ": " + curr)
+
+        impossDict  = createDict(curr)
+        end = bruteForce(curr,  createMORECHOICES(curr,impossDict)[1], impossDict)
+
+        spaces = 2 + int(len(str(num+1)))
+        print((spaces * ' ') + end, end = "")
+        cSum = checkSum(end)
+        timer = time.perf_counter() - startT
+        print(' ' +str(cSum) + ' {:.2f}s'.format(timer, 2))
+        #printBox(end)
+
+    #print(stacks.items())
+
+profile = True
+if profile:
+    import cProfile
+    cProfile.run('main()', sort = 'tottime')
+else:
+    main()
+
+#Arrush Shah, p4, 2026

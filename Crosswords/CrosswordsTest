@@ -1,0 +1,308 @@
+import sys; args=sys.argv[1:]
+import re
+import random
+
+
+def isConnected(brd, orien):
+    for i, x in enumerate(brd):
+        if brd[i].isalpha():
+            if orien == "V":
+                if i + 1 < len(brd) and brd[i + 1].isalpha():
+                    return True
+                if i - 1 >= 0 and brd[i - 1].isalpha():
+                    return True
+            if orien == "H":
+                if i + width < len(brd) and brd[i + width].isalpha():
+                    return True
+                if i - width >= 0 and brd[i - width].isalpha():
+                    return True
+    return False
+
+def rotate_180(brd, width):
+    return "".join(["".join(row[::-1]) for row in [brd[i:i+width] for i in range(0, len(brd), width)][::-1]])
+
+
+
+def floodFill(board, i, j):
+    """
+    Recursively flood-fills the board starting from (i, j).
+    Marks visited open cells with '*'.
+    """
+    idx = i * width + j
+    if i < 0 or j < 0 or i >= height or j >= width or board[idx] in ('#', '*'):
+        return board
+    board = board[:idx] + '*' + board[idx+1:]
+    board = floodFill(board, i+1, j)
+    board = floodFill(board, i-1, j)
+    board = floodFill(board, i, j+1)
+    board = floodFill(board, i, j-1)
+    return board
+
+def violate_three(board, return_info=False):
+    """
+    Checks every non-block cell in the board for a violation:
+    Each such cell must be part of at least one horizontal and one vertical three group
+    that does NOT contain a blocking square ('#').
+    
+    Returns:
+        If return_info is False: True if no violation, else False.
+        If return_info is True: (True, None, None) if valid, else (False, direction, index).
+    """
+    for idx, cell in enumerate(board):
+        if cell == '#':
+            continue
+        row, col = idx // width, idx % width
+
+        
+        valid_h = False
+        hor_segs = []
+        if col <= width - 3:
+            hor_segs.append(board[idx:idx+3])
+        if 0 < col < width - 1:
+            hor_segs.append(board[idx-1:idx+2])
+        if col >= 2:
+            hor_segs.append(board[idx-2:idx+1])
+        for seg in hor_segs:
+            if '#' not in seg:
+                valid_h = True
+                break
+        if not valid_h:
+            return (False, 'H', idx) if return_info else False
+
+      
+        valid_v = False
+        ver_segs = []
+        if row <= height - 3:
+            ver_segs.append(board[idx] + board[idx+width] + board[idx+2*width])
+        if 0 < row < height - 1:
+            ver_segs.append(board[idx-width] + board[idx] + board[idx+width])
+        if row >= 2:
+            ver_segs.append(board[idx-2*width] + board[idx-width] + board[idx])
+        for seg in ver_segs:
+            if '#' not in seg:
+                valid_v = True
+                break
+        if not valid_v:
+            return (False, 'V', idx) if return_info else False
+
+    return (True, None, None) if return_info else True
+
+def checkIsolated(board, fill_isolated=False):
+    """
+    Uses flood-fill to detect isolated open regions.
+    If fill_isolated is True, then the smallest isolated region is filled (turned into '#'s).
+    """
+    start = board.find('-')
+    if start == -1:
+        # If no free space found, try any non-block cell.
+        for idx in range(len(board)):
+            if board[idx] != '#':
+                start = idx
+                break
+        else:
+            return True  # Fully blocked board.
+    filled = floodFill(board, start // width, start % width)
+    if fill_isolated and '-' in filled:
+        while True:
+            bigone = filled
+            last = filled
+            regions = {last}
+            reset_positions = []
+            while '-' in bigone:
+                reset_positions.extend([i for i, ch in enumerate(last) if ch == '*'])
+                start = bigone.find('-')
+                bigone = floodFill(bigone, start // width, start % width)
+                last = bigone
+                for pos in reset_positions:
+                    last = last[:pos] + '-' + last[pos+1:]
+                regions.add(last)
+            # Pick the region with the fewest star marks.
+            regions = {r for r in regions if '*' in r}
+            changes = {r.count('*'): r for r in regions}
+            smallest = min(changes)
+            filled = changes[smallest].replace('*', '#')
+            if checkIsolated(filled):
+                break
+        # update the original board: for each '#' in filled, copy it.
+        new_board = board
+        for i, ch in enumerate(filled):
+            if ch == '#':
+                new_board = new_board[:i] + '#' + new_board[i+1:]
+        return new_board
+    return False if '-' in filled else (board if fill_isolated else True)
+
+def rotate180fully(board):
+    """
+    a direct 180 rotation of the board and
+    transfer the blocking squares back onto original board.
+    """
+    # break board into rows.
+    rows = [board[i*width:(i+1)*width] for i in range(height)]
+    # reverse row order and each row.
+    rotated = ''.join(row[::-1] for row in rows[::-1])
+    board_list = list(board)
+    for i, ch in enumerate(rotated):
+        if ch == '#':
+            board_list[i] = '#'
+    return "".join(board_list)
+
+def fix_invalid_board(board):
+    """
+    Repeatedly fixes the board by filling isolated regions and addressing three-group violations.
+    enforces symm.
+    """
+    new_board = board
+    while True:
+        new_board = checkIsolated(new_board, fill_isolated=True)
+        valid, direction, pos = violate_three(new_board, return_info=True)
+        if valid:
+            break
+        if direction == 'H':
+            # Find horizontal bounds.
+            left = pos
+            while left % width > 0 and new_board[left] != '#':
+                left -= 1
+            right = pos
+            while right % width < width - 1 and new_board[right] != '#':
+                right += 1
+            for i in range(left, right + 1):
+                new_board = new_board[:i] + '#' + new_board[i+1:]
+            new_board = rotate180fully(new_board)
+        else:
+            # Vertical bounds.
+            upper = pos
+            while upper // width > 0 and new_board[upper] != '#':
+                upper -= width
+            lower = pos
+            while lower // width < height - 1 and new_board[lower] != '#':
+                lower += width
+            for i in range(upper, lower + 1, width):
+                new_board = new_board[:i] + '#' + new_board[i+1:]
+            new_board = rotate180fully(new_board)
+    return new_board
+
+def isValid(board):
+    return violate_three(board) and checkIsolated(board)
+
+def addBlockinSq(raw_board, target):
+    """
+    Recursively adds blocking squares to raw_board until target blocking squares are reached.
+    Enforces symmetry via a 180 rotation.
+    """
+    board = raw_board
+    if not isValid(board):
+        if target - board.count('#') < 25:
+            return ''
+        board = fix_invalid_board(board)
+    if board.count('#') == target:
+        return board
+    if board.count('#') > target:
+        return ''
+    
+    for pos in [i for i, ch in enumerate(board) if ch == '-']:
+        new_board = board[:pos] + '#' + board[pos+1:]
+        mirror = (height * width - 1) - pos
+        if board[mirror] != '-':
+            continue
+        new_board = new_board[:mirror] + '#' + new_board[mirror+1:]
+        ret = addBlockinSq(new_board, target)
+        if ret:
+            return ret
+    return ''
+
+
+
+def placeSeed(brd, orien, x, y, word):
+    idx = x * width + y
+    if orien == "H":
+        for i in range(len(word)):
+            if brd[x][y+i] != "-" and brd[x][y+i].lower() != word[i].lower():
+                return brd  # conflict do not place word
+            brd[x][y+i] = word[i]
+    else:
+        for i in range(len(word)):
+            if brd[x+i][y] != "-" and brd[x+i][y].lower() != word[i].lower():
+                return brd  # conflict detected
+            brd[x+i][y] = word[i]
+    return brd
+
+def parseSeeds(seedsList, brd):
+    for thisSeed in seedsList:
+        letteridx = [i for i, x in enumerate(thisSeed) if not x.isdigit() and x != "x"]
+        if len(letteridx) > 1:
+            letteridx = letteridx[1]
+        else:
+            letteridx = len(thisSeed)
+        orientation = thisSeed[0].upper()
+        coordx = int(thisSeed[1:thisSeed.find("x")])
+        coordy = int(thisSeed[thisSeed.find("x")+1:letteridx])
+        word = thisSeed[letteridx:]
+        if not word:
+            word = "#"
+        brd = placeSeed(brd, orientation, coordx, coordy, word)
+    return brd
+
+def displayBoard(brd):
+    return "\n".join([brd[i:i+width] for i in range(0, len(brd), width)])
+
+def isSymm(brd):
+    brd = re.sub(r"[a-zA-Z]", "-", brd)
+    newBrd = rotate_180(brd, width)
+    return newBrd == brd
+
+
+#args = "9x26 40 h4x10n# h3x7s# h2x7# v2x0sit V5x1#i V8x22l".split()
+#args = "8x8 50".split()
+#args = "5x5 0 h3x1d V0x4scars".split()
+#args = "3x3 0 V0x0A".split()
+tkn = args[0].split("x")
+height = int(tkn[0])
+width = int(tkn[1])
+totalLen = height * width
+blockCount = int(args[1])
+seeds = args[2:]
+
+def main():
+    global width, height,args
+    #args = " dct20k.txt 3x3 0 V0x0A".split()
+    
+
+    
+    
+    #args = "11x11 20 V0x1Dam".split()
+    #args = "5x5 16".split()
+    #args = "8x8 50".split()
+    
+    
+    
+    board = [["-"] * width for _ in range(height)]
+    if blockCount == totalLen:
+        print(displayBoard("#" * totalLen))
+        return
+    board = parseSeeds(seeds, board)
+    final_board = "".join("".join(row) for row in board)
+    print(displayBoard(final_board))
+    
+
+    final_crossword = final_board
+    
+    final_crossword = rotate180fully(final_crossword)
+    if not isValid(final_crossword):
+        final_crossword = fix_invalid_board(final_crossword)
+    final_crossword = addBlockinSq(final_crossword, blockCount)
+    print()
+    # if not final_crossword:
+    #     board = [k for x in board for k in x]
+    #     for x in range(len(board)):
+    #         if x%width == 0 or x//width == 0 or x%width == width-1 or x//width == width-1 or x == width+1 or x == width*height-width-2:
+    #             board[x] = "#"
+    #     final_crossword = "".join(board)
+    print(displayBoard(final_crossword))
+    # print("done")
+    # print(isSymm("#-------#"))
+    # print(violate_three(final_crossword))
+
+if __name__ == '__main__':
+    main()
+
+#Navya Arora pd4 2026

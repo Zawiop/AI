@@ -1,0 +1,70 @@
+#import sys; args = sys.argv[1:]
+#import math
+import random
+import time
+#import re
+t = time.perf_counter()
+
+root = '16_257348'
+length = 9
+width = 3
+def swap(str ,pos1, pos2):
+    list = [*str]
+    list[pos1], list[pos2] = list[pos2], list[pos1]
+    str = ''.join(list)
+    return str
+        
+def addNodes(root, parseMe, seen):
+    if((idx := root.index('_')) - width >= 0): # bottom
+        temp =swap(root, idx, idx-width)
+        if(temp not in seen):
+            parseMe.append(temp)
+            seen.update({temp : root})
+        
+    if(idx + width < length ): # top
+        temp = swap(root, idx, idx+width)
+        if(temp not in seen):
+            parseMe.append(temp)
+            seen.update({temp : root})
+
+    if(idx % width != 0 and idx -1 >= 0): # left
+        temp = swap(root, idx, idx-1)
+        if(temp not in seen):
+            parseMe.append(temp)
+            seen.update({temp : root})
+
+    if(idx % width != width-1 and idx +1 < length): # right
+        temp =swap(root, idx, idx+1)
+        if(temp not in seen):
+            parseMe.append(temp)
+            seen.update({temp : root})
+
+def search(root):
+    parseMe = [root, "lvl"]
+    detSeen = {root : root}
+    steps = 0
+    count = 0
+    currTotalNodes = -1
+    levels = [1]
+    while parseMe:
+        current = parseMe[count]
+        count +=1
+        currTotalNodes +=1
+        if(current == "lvl"):
+            steps +=1
+            parseMe.append("lvl")
+            print(currTotalNodes + " " + steps)
+            levels.append(currTotalNodes)
+            currTotalNodes = -1
+            if(parseMe[count] == 'lvl'):
+                break
+        else:
+            addNodes(current, parseMe, detSeen)
+    return levels       
+search(root)
+
+
+#timer = time.perf_counter() - t
+#print('{:.2f}s'.format(timer, 2) + "\nAvgTime per Pzl: " + '{:.4f}s'.format(timer/numSolvable, 4))
+
+#Arrush Shah, p4, 2026

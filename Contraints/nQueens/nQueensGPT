@@ -1,0 +1,115 @@
+import sys
+
+argv = sys.argv[1:]
+
+if len(argv) != 1:
+    print("Usage: nqueens.py N or nqueens.py initial_board")
+    sys.exit(1)
+
+arg = argv[0]
+
+try:
+    N = int(arg)
+    initial_board = '.' * (N * N)
+    queen_symbol = 'Q'
+except ValueError:
+    initial_board = arg
+    N2 = len(initial_board)
+    N = int(N2 ** 0.5 + 0.5)
+    if N * N != N2:
+        print("Invalid board size")
+        sys.exit(1)
+    symbols = set(initial_board)
+    symbols.discard('.')
+    if len(symbols) == 0:
+        queen_symbol = 'Q'
+    elif len(symbols) == 1:
+        queen_symbol = symbols.pop()
+    else:
+        print("Invalid input: multiple symbols detected")
+        sys.exit(1)
+
+# Determine all the constraint sets
+constraint_sets = []
+
+# Rows
+for row in range(N):
+    cset = set()
+    for col in range(N):
+        index = row * N + col
+        cset.add(index)
+    constraint_sets.append(cset)
+
+# Columns
+for col in range(N):
+    cset = set()
+    for row in range(N):
+        index = row * N + col
+        cset.add(index)
+    constraint_sets.append(cset)
+
+# Diagonals (row - col)
+diag_dict = {}
+for row in range(N):
+    for col in range(N):
+        diag = row - col
+        index = row * N + col
+        if diag not in diag_dict:
+            diag_dict[diag] = set()
+        diag_dict[diag].add(index)
+constraint_sets.extend(diag_dict.values())
+
+# Anti-diagonals (row + col)
+anti_diag_dict = {}
+for row in range(N):
+    for col in range(N):
+        anti_diag = row + col
+        index = row * N + col
+        if anti_diag not in anti_diag_dict:
+            anti_diag_dict[anti_diag] = set()
+        anti_diag_dict[anti_diag].add(index)
+constraint_sets.extend(anti_diag_dict.values())
+
+def isInvalid(pzl):
+    for cset in constraint_sets:
+        count = 0
+        for index in cset:
+            if pzl[index] == queen_symbol:
+                count += 1
+                if count > 1:
+                    return True
+    return False
+
+def isSolved(pzl):
+    return pzl.count(queen_symbol) == N and not isInvalid(pzl)
+
+def bruteForce(pzl):
+    if isInvalid(pzl): return ""
+    if isSolved(pzl): return pzl
+    for row in range(N):
+        row_has_queen = False
+        for col in range(N):
+            index = row * N + col
+            if pzl[index] == queen_symbol:
+                row_has_queen = True
+                break
+        if not row_has_queen:
+            for col in range(N):
+                index = row * N + col
+                if pzl[index] != '.':
+                    continue
+                new_pzl = pzl[:index] + queen_symbol + pzl[index+1:]
+                bF = bruteForce(new_pzl)
+                if bF:
+                    return bF
+            return ""
+    return ""
+
+solution = bruteForce(initial_board)
+
+if not solution:
+    print("No solution possible")
+else:
+    print("Solution:", solution.replace('.', '.'))
+    for row in range(N):
+        print(solution[row * N: (row+1)*N])

@@ -1,0 +1,226 @@
+import sys; args = sys.argv[1:]
+args = [x.upper() for x in args]
+splited = args[1].split('X')
+H, W = int(splited[0]), int(splited[1])
+verticalWords = []
+horizontalWords = []
+hashes = []
+
+POSS = []
+global OUTLAWED
+OUTLAWED = set()
+
+for item in args[3:]:
+    VOH = item[0]
+    x, part = item[1:].split('X',1)
+    try:
+        y = int(part[:2])
+        word = part[2:]
+    except:
+        y = int(part[0])    
+        word = part[1:]
+    x = int(x)
+    if not word: word = '#'
+    if item[0] == 'V': 
+        verticalWords.append((int(x*W + y), word))
+    elif item[0] == 'H':
+        horizontalWords.append((int(x*W  + y), word))
+
+crossword = '-' * (H * W)
+LENGTH = len(crossword)
+global BLOCKS
+BLOCKS = int(args[2])
+
+def addSafeSpace(crossword):
+    changed = list(crossword)
+    dirs = [-W, W, -1, 1]
+
+    for index, char in enumerate(crossword):
+        
+        if char.isalpha():
+            for direction in dirs:
+                arrow = index + direction
+                count = 0
+                while count < 2 and arrow >= 0 and arrow < LENGTH and horOrVertConditions(arrow, index, direction):
+                    if changed[arrow] == '#':
+                        break
+                    if changed[arrow] == '-':
+                        changed[arrow] = '/'
+                    count += 1
+                    arrow += direction
+    return ''.join(changed)
+            
+def getOppo(crossword, index):
+    return len(crossword) - index - 1
+    
+
+
+def placeWord(s, index, word, isVertical):
+    blockCount = 0
+    lst = [*s]
+    end = index + len(word)
+    step = 1
+    if isVertical: 
+        step = W
+        end = index + (len(word)*W)
+    counter = 0
+    for c in range(index, end, step):
+        lst[c] = word[counter]
+        #print(len(s) - c -1)
+        
+        if word[counter] == '#': 
+            lst[len(s) - c - 1] = '#'
+            blockCount += 2
+            
+        #elif lst[len(s) - c - 1] == '-': 
+         #   lst[len(s) - c - 1] = '/'
+            
+        counter += 1
+    return ''.join(lst), blockCount
+
+def replace(s, pos1, c):
+    lst = [*s]
+    lst[pos1] = c
+    return ''.join(lst)
+
+def replaceOpposite(s, pos1, c):
+    lst = [*s]
+    if lst[pos1] not in {'#', '-'} or lst[len(s) - pos1 - 1] not in {'#', '-'}:
+        return False
+    lst[pos1] = c
+    lst[len(s) - pos1 - 1] = c
+    return ''.join(lst)
+
+
+def print2D(board):
+    l = list(board)
+    for i in range(H):
+        print("".join(l[i * W + j] for j in range(W)))
+
+
+# Assume W is defined somewhere (for instance, the width of the grid)
+dirs = [-W, W, -1, 1]
+def horOrVertConditions(arrow, index, direction):
+    return arrow % W == index % W if direction == -W or direction == W else arrow // W == index // W
+def checkDirection(index, direction, crossword, LENGTH):
+    group = []
+    arrow = index + direction
+    
+        
+    while arrow >= 0 and arrow < LENGTH and horOrVertConditions(arrow, index, direction):
+        if (crossword[arrow].isalpha() or crossword[getOppo(crossword, arrow)].isalpha()) and len(group) <= 2:
+            #print(index, crossword[index])
+
+            return False
+        
+        if crossword[arrow] not in {'-', '/'} or crossword[getOppo(crossword, arrow)] not in {'-', '/'}:
+            break
+
+       
+        group.append(arrow)
+        arrow += direction  
+    return group
+
+def makePossible(crossword):
+   
+    LENGTH = len(crossword)
+    crossword = list(crossword)
+    
+    for index, char in enumerate(crossword):
+        if char == '#':
+            directionGroups =[]
+            for direction in dirs:
+                result = checkDirection(index, direction, crossword, LENGTH)
+                if result is False:
+                    return False  
+
+                directionGroups.append(result)
+            #(directionGroups[3])
+            for group in directionGroups:
+                
+                if len(group) > 2:
+                    continue  
+                for i in group:
+                    
+                    crossword = replaceOpposite(crossword, i, '#')
+                    
+    return crossword
+def sortingNum(crossword, index):
+    row_start = (index // W) * W  # Get the start of the row
+    col_start = index % W         # Get the start of the column
+    row_blocks = sum(1 for c in range(row_start, row_start + W) if crossword[c] == '#')
+
+    col_blocks = sum(1 for r in range(col_start, LENGTH, W) if crossword[r] == '#')
+
+    return row_blocks + col_blocks 
+
+    
+def getPossible(crossword):
+    poss = []
+    for index, char in enumerate(crossword):
+        if char == '-':
+            poss.append((sortingNum(crossword, index), index))
+    return sorted(poss)
+
+def placeBlocks(board, blocks_remaining):
+    original_board = board
+    if blocks_remaining == 0:
+        if (w:=makePossible(board)) == board:
+            print2D(w)
+            print()
+            return board 
+        else:
+            return None 
+
+    poss = getPossible(board)
+    for index in poss:
+        index = index[1]
+        new_board = replaceOpposite(board, index, '#')
+        if not new_board:
+            continue
+        oldForced = makePossible(new_board)
+        if oldForced == False: continue
+        new = makePossible(oldForced)
+        if new == False: continue
+        while oldForced != new:
+            oldForced = new
+            new = makePossible(oldForced)
+            if new == False: break
+        forced_board = new
+        
+        if forced_board == False:
+            continue
+        added = forced_board.count('#') - board.count('#')
+        if added > blocks_remaining:
+            continue
+        result = placeBlocks(forced_board, blocks_remaining - added)
+        if result is not None:
+            return result
+    return None
+
+if BLOCKS%2 == 1 and W%2 == 1 and H%2 == 1:
+    crossword = replace(crossword, W//2 + H//2 * W, '#')
+    BLOCKS -= 1
+
+for word in verticalWords:
+    crossword, blocksAdded = placeWord(crossword, word[0], word[1], True)
+    BLOCKS -= blocksAdded
+for word in horizontalWords:
+    crossword, blocksAdded = placeWord(crossword, word[0], word[1], False)
+    BLOCKS -= blocksAdded
+#crossword = makeSafe(crossword)
+#crossword = makeSafe(crossword)
+#print(checkPuzzle(crossword, BLOCKS))
+#print()
+
+print2D(crossword)
+print()
+#print2D(crossword:=addSafeSpace(crossword))
+print()
+if BLOCKS != 0:
+    crossword = placeBlocks(crossword, BLOCKS)
+crossword = ''.join(crossword)
+crossword = crossword.replace('/', '-')
+#crossword = crossword.replace('-', 'E')
+print2D(crossword)
+# Arrush Shah, p4, 2026
